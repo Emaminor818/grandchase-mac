@@ -1,37 +1,28 @@
 #!/bin/zsh
-# setup.sh — aplica o fix do Themida ("Wrong DLL present") numa bottle CrossOver
-# que já tem a Steam + GrandChase instalados e logados.
+# setup.sh — aplica o fix do Themida + dxvk.conf num prefix Wine que já tem
+# a Steam + GrandChase instalados (caminho grátis: wine-proton).
 #
 # O que faz:
-#  1. força os runtimes do Visual C++ a carregarem as versões GENUÍNAS (native)
-#     em vez das builtin do Wine — é isso que o anti-tamper Themida exige.
-#  2. configura um virtual desktop só pro GrandChase, pra alt-tab não congelar
-#     o jogo (perda/recuperação do device D3D9 ao trocar de foco).
-# NÃO mexe em d3d9 (o renderer nativo D3DMetal do CrossOver é o que funciona).
+#   1. Overrides 'native' pros runtimes VC++ -> passa o "Wrong DLL present" do Themida.
+#      (o Themida rejeita os runtimes builtin do Wine; precisa dos genuínos da Microsoft,
+#       normalmente já instalados pelo GrandChasePrerequisiteInstaller na 1ª execução.)
+#   2. Escreve o dxvk.conf na pasta do jogo (floatEmulation + cache de shader).
 #
-# Uso: ./setup.sh [NOME_DA_BOTTLE]   (default: Steam)
+# Uso: ./setup.sh [PREFIX]      (default: ~/Games/gc-proton)
+#
+# Também funciona numa bottle do CrossOver: passe o caminho da bottle como PREFIX
+# e ajuste WINE abaixo para o wine do CrossOver.
 
 set -e
-CX="/Applications/CrossOver.app/Contents/SharedSupport/CrossOver"
-BOTTLE="${1:-Steam}"
-BPATH="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE"
+PREFIX="${1:-$HOME/Games/gc-proton}"
+WINE="${WINE:-$HOME/Games/wine-proton/bin/wine}"
+GAMEDIR="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/GrandChase"
 
-# Resolução do virtual desktop — CASE com a resolução que você escolher DENTRO
-# do jogo (Opções), senão dá borda ou corte. Default = nativa do jogo (4:3).
-VDESKTOP_RES="${VDESKTOP_RES:-1024x768}"
+[ -d "$PREFIX" ] || { echo "Prefix não encontrado: $PREFIX"; exit 1; }
+[ -x "$WINE" ]   || { echo "Wine não encontrado: $WINE (defina WINE=...)"; exit 1; }
 
-[ -d "$CX" ] || { echo "CrossOver não encontrado em $CX"; exit 1; }
-[ -d "$BPATH" ] || { echo "Bottle '$BOTTLE' não encontrada em $BPATH"; exit 1; }
-
-echo "==> Garantindo runtimes genuínos do VC++ na bottle (vcrun2022)…"
-echo "    (se já instalados, o CrossOver/winetricks pula)"
-# Os arquivos genuínos normalmente já vêm com o GrandChasePrerequisiteInstaller.
-# Se faltarem, instale o 'Microsoft Visual C++ Redistributable' pela GUI do CrossOver
-# (Install Software -> nesta bottle) ou rode o GrandChasePrerequisiteInstaller.exe.
-
-echo "==> Aplicando overrides native pros runtimes VC++ (fix do Themida)…"
-REG='C:\gc_themida_fix.reg'
-cat > "$BPATH/drive_c/gc_themida_fix.reg" <<'EOF'
+echo "==> Aplicando overrides 'native' dos runtimes VC++ (fix do Themida)…"
+cat > "$PREFIX/drive_c/gc_themida_fix.reg" <<'EOF'
 REGEDIT4
 
 [HKEY_CURRENT_USER\Software\Wine\DllOverrides]
@@ -49,30 +40,21 @@ REGEDIT4
 "*d3dx9_42"="native"
 "*d3dx9_43"="native"
 EOF
-
-"$CX/bin/cxstart" --bottle "$BOTTLE" -- regedit /S "$REG" >/dev/null 2>&1
+WINEPREFIX="$PREFIX" WINEDEBUG=-all "$WINE" regedit /S 'C:\gc_themida_fix.reg' >/dev/null 2>&1 || true
 sleep 2
-rm -f "$BPATH/drive_c/gc_themida_fix.reg"
+rm -f "$PREFIX/drive_c/gc_themida_fix.reg"
 
-echo "==> Verificando overrides aplicados…"
-"$CX/bin/cxstart" --bottle "$BOTTLE" -- reg query 'HKCU\Software\Wine\DllOverrides' 2>/dev/null \
-  | grep -iE "vcruntime140|msvcp140|concrt140|d3dx9" || echo "  (não consegui ler — tente rodar o jogo mesmo assim)"
-
-echo "==> Configurando virtual desktop pro GrandChase ($VDESKTOP_RES)…"
-VREG='C:\gc_vdesktop.reg'
-cat > "$BPATH/drive_c/gc_vdesktop.reg" <<EOF
-REGEDIT4
-
-[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\GrandChase.exe\\Explorer]
-"Desktop"="GrandChase"
-
-[HKEY_CURRENT_USER\\Software\\Wine\\Explorer\\Desktops]
-"GrandChase"="$VDESKTOP_RES"
+if [ -d "$GAMEDIR" ]; then
+  echo "==> Escrevendo dxvk.conf na pasta do jogo…"
+  cat > "$GAMEDIR/dxvk.conf" <<'EOF'
+# GrandChase no Mac (wine-proton + DXVK 2.7 + MoltenVK 1.4.1)
+d3d9.floatEmulation = Strict
+dxvk.numCompilerThreads = 8
+dxvk.enableStateCache = True
 EOF
-"$CX/bin/cxstart" --bottle "$BOTTLE" -- regedit /S "$VREG" >/dev/null 2>&1
-sleep 2
-rm -f "$BPATH/drive_c/gc_vdesktop.reg"
-echo "    (mudou a resolução no jogo? rode: VDESKTOP_RES=LARGURAxALTURA ./setup.sh)"
+else
+  echo "==> (jogo ainda não instalado em $GAMEDIR — copie o dxvk.conf.example pra lá depois)"
+fi
 
 echo ""
-echo "Pronto. Agora use ./grandchase para jogar."
+echo "Pronto. Use ./grandchase para jogar."

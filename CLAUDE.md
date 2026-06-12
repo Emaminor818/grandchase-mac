@@ -5,8 +5,14 @@ humano (instalar e jogar). Este arquivo é o que te impede de refazer ~6h de
 investigação. Leia inteiro antes de propor qualquer mudança.
 
 **Objetivo:** rodar GrandChase Classic (Steam app `985810`) no macOS Apple Silicon.
-**Status:** FUNCIONA — chega ao lobby. Verificado em 2026-06-11, MacBook Pro M1 Max,
-macOS 27, CrossOver 26.2 (trial). Bottle chamada `Steam`.
+**Status:** FUNCIONA — joga no lobby. Verificado 2026-06-11, M1 Max, macOS 27.
+
+**CAMINHO PRINCIPAL = GRÁTIS (sem CrossOver):** wine-proton 10 + **DXVK 2.7 + MoltenVK
+v1.4.1** (par casado) + runtimes VC++ genuínos (Themida) + `dxvk.conf` floatEmulation.
+Componentes em `~/Games/` (wine-proton, dxvk27, mvk141, prefix gc-proton). Env exato em
+`RECIPE-FREE.txt`. Launcher `grandchase` lança via `-applaunch 985810`. NÃO trocar o par
+DXVK 2.7 / MoltenVK 1.4.1 (outras combinações → invisível ou device-fail; ver becos abaixo).
+A seção CrossOver abaixo é a alternativa paga (foi o 1º caminho que funcionou).
 
 ---
 
